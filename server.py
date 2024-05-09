@@ -40,6 +40,9 @@ async def server(sock):
             sock.sendto(new_msg.as_encoded(), addr)
 
 
+# bütün problem bu create task şeyinden geliyo
+# bunun nasıl olacağını düzgünce çizsem fln yeniden bi denesem sakin kafayla yaparım aga
+
 
 async def main():
     sock = await asyncudp.create_socket(local_addr=(IP, PORT))
