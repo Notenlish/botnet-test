@@ -1,4 +1,5 @@
 import asyncio
+import asyncudp
 
 from message import Message, MessageTypes
 
@@ -6,32 +7,54 @@ from utils import get_config
 
 IP, PORT = get_config()
 
+global COUNT
+global queue
+
+COUNT = 0
+QUEUE = []
 
 
-async def tcp_echo_client():
-    reader, writer = await asyncio.open_connection(IP, PORT)
-
-    # if queue is empty, send messages every X seconds since its TCP protocol
-    # TODO: 
-    msg_to_send = Message(MessageTypes.MSG)
-    print(f"Sending: {msg_to_send}")
-    writer.write(msg_to_send.as_encoded())
-    await writer.drain()
-
-    data = await reader.read(100)
-    msg_received = Message.from_encoded_str(data)
-    print(f"Received: {msg_received}")
-
-    if msg_received.type == MessageTypes.QUIT:
-        print("closing the connection")
-        writer.close()
-        await writer.wait_closed()
-    if msg_received.type == MessageTypes.REPEAT:
-        pass
-
-    # print("Closing the connection")
-    # writer.close()
-    # await writer.wait_closed()
+async def message_creator(flag):
+    while True:
+        if len(QUEUE) == 0:
+            QUEUE.append(Message(MessageTypes.REPEAT, data={"count": COUNT}))
+            flag.set()
+        # print("queue len is", len(QUEUE))
+        await asyncio.sleep(0.1)
 
 
-asyncio.run(tcp_echo_client())
+async def client(sock, flag):
+    while True:
+        print("enters this loop")
+        await flag.wait()
+        if len(QUEUE) > 0:
+            print("queue has an item")
+            m_to_send = QUEUE.pop(0)
+            sock.sendto(m_to_send.as_encoded())
+
+        received, addr = await sock.recvfrom()
+        msg_received = Message.from_encoded_str(received)
+        print(msg_received)
+
+        if msg_received.type == MessageTypes.QUIT:
+            break
+        if msg_received.type == MessageTypes.REPEAT:
+            COUNT = msg_received.data["count"]
+            COUNT += 1
+
+
+async def main():
+    sock = await asyncudp.create_socket(remote_addr=(IP, PORT))
+
+    flag = asyncio.Event()
+
+    task = asyncio.create_task(message_creator(flag))
+    # await client(sock)
+
+    await asyncio.gather(task, client(sock, flag))
+
+    sock.close()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

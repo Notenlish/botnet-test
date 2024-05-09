@@ -1,5 +1,5 @@
-from json import loads, dumps
 from enum import IntEnum, auto
+from json import dumps, loads
 
 
 class MessageTypes(IntEnum):
@@ -9,7 +9,7 @@ class MessageTypes(IntEnum):
 
 
 class Message:
-    def __init__(self, _type, data="") -> None:
+    def __init__(self, _type, data: dict = {}) -> None:
         self.type = _type
         self.data = data
 
@@ -39,6 +39,16 @@ class Message:
         # print(_str, type(_str))
         return cls.from_str(_str)
 
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Message):
+            if self.type == other.type:
+                if self.data == other.data:
+                    return True
+        return False
+
 
 if __name__ == "__main__":
-    print(Message.from_encoded_str('{"type":3, "data":""}'.encode()))
+    orig = Message(MessageTypes.MSG, data={"g": "123"})
+    encoded = orig.as_encoded()
+    m = Message.from_encoded_str(encoded)
+    assert orig == m
