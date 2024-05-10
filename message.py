@@ -6,6 +6,7 @@ class MessageTypes(IntEnum):
     QUIT = auto()
     REPEAT = auto()
     MSG = auto()
+    RUN_ENCRYPTED_CODE = auto()
 
 
 class Message:

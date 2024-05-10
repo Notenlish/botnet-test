@@ -1,12 +1,13 @@
 import asyncio
 import asyncudp
 
+from cryptography.fernet import Fernet
 
 from message import Message, MessageTypes
 
 from utils import get_config
 
-IP, PORT = get_config()
+IP, PORT, KEY = get_config()
 
 global COUNT
 global queue
@@ -15,27 +16,40 @@ COUNT = 0
 QUEUE = []
 
 
-async def message_creator():
-    while True:
-        if len(QUEUE) == 0:
-            QUEUE.append(Message(MessageTypes.REPEAT, data={"count": COUNT}))
-        # print("queue len is", len(QUEUE))
-        await asyncio.sleep(0.1)
+with open("script_to_send.txt", "r") as f:
+    SCRIPT_TO_SEND = f.read()
+
 
 
 async def server(sock):
+    COUNT = 0
+
+    fernet = Fernet(KEY)
+
     while True:
-        print("enters this loop")
+        if len(QUEUE) == 0:
+            QUEUE.append(Message(MessageTypes.REPEAT, data={"count": COUNT}))
+        await asyncio.sleep(0.1)
+
         data, addr = await sock.recvfrom()
         msg_received = Message.from_encoded_str(data)
-
         print(msg_received)
+
         if msg_received.type == MessageTypes.REPEAT:
             COUNT = msg_received.data["count"]
             COUNT += 1
+            if COUNT % 10 == 0:
+                # encrypted_script = fernet.encrypt("print('hello world')".encode("latin-1"))
+                data_to_send = {"script": SCRIPT_TO_SEND}
+                QUEUE.append(
+                    Message(
+                        MessageTypes.RUN_ENCRYPTED_CODE,
+                        data=data_to_send,
+                    )
+                )
+                # print(data_to_send)
 
         if len(QUEUE) > 0:
-            print("queue has an item")
             new_msg = QUEUE.pop(0)
             sock.sendto(new_msg.as_encoded(), addr)
 
@@ -47,8 +61,8 @@ async def server(sock):
 async def main():
     sock = await asyncudp.create_socket(local_addr=(IP, PORT))
 
-    task = asyncio.create_task(message_creator())
-    await asyncio.gather(message_creator(), server(sock))
+    await server(sock)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
